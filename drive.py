@@ -13,6 +13,7 @@ from config import CONFIG as cfg
 CONFIG = cfg()
 credentials_json = CONFIG.credentials_json
 prefix = CONFIG.file_name_prefix
+main_directory = CONFIG.path
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
@@ -48,9 +49,10 @@ def authenticate_google_drive():
     creds = None
     # The file token.json stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first time.
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    
+    token_dir = os.path.join(main_directory, 'token.json')
+    if os.path.exists(token_dir):
+        creds = Credentials.from_authorized_user_file(token_dir, SCOPES)
+
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
@@ -61,7 +63,7 @@ def authenticate_google_drive():
                 credentials_json, SCOPES)
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
-        with open('token.json', 'w') as token:
+        with open(token_dir, 'w') as token:
             token.write(creds.to_json())
 
     return build('drive', 'v3', credentials=creds)

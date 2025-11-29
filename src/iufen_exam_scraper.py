@@ -51,4 +51,4 @@ if __name__ == "__main__":
     text = CONFIG.text
     chromium_path = CONFIG.chromium_path
 
-    href_link_scraper(URL, port, text, chromium_path)
+    print(href_link_scraper(URL, port, text, chromium_path))

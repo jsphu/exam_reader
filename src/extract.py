@@ -29,7 +29,12 @@ def parse_exam_schedule(text, semester_filter):
     # (?=\d{2}/\d{2}/\d{4}|$)  -> Stop when we hit the Next Date OR End of String
 
     pattern = re.compile(
-        r"(\d{2}/\d{2}/\d{4})\s+([A-Za-zÇĞİÖŞÜçğıöşü]+)\s+(\d{2}:\d{2}-\d{2}:\d{2})\s+(\d+)\s+(.*?)(?=\d{2}/\d{2}/\d{4}|$)", 
+        r"(\d{2}/\d{2}/\d{4})\s+([A-Za-zÇĞİÖŞÜçğıöşü]+)\s+(\d{2}:\d{2}-\d{2}:\d{2})\s+(\d+)\s+(.*?)(?=\d{2}/\d{2}/\d{4}|$)",
+        re.DOTALL | re.IGNORECASE
+    )
+    details_pattern = re.compile(
+        r"(.+?)\s+"  # Capture everything up to the title (Course Name)
+        r"((?:Prof\.?|Doç\.?|Dr\.?|\s*Öğr\.?|Üyesi).*$)", # Capture the title and everything after it
         re.DOTALL | re.IGNORECASE
     )
 
@@ -49,13 +54,29 @@ def parse_exam_schedule(text, semester_filter):
 
         # 3. FILTER LOGIC
         if re.fullmatch(str(semester_filter), semester):
+            detail_split = details_pattern.match(details)
+
+            if detail_split:
+                course_name = detail_split.group(1).strip()
+                prof_loc = detail_split.group(2).strip()
+
+                prof_loc = re.sub(r'\s*\(.+?\)', '', prof_loc)
+                prof_loc = re.sub(r'\s*\d{4}-\d{4}.*', '', prof_loc)
+                prof_loc = re.sub(r'\s+', ' ', prof_loc).strip()
+
+            else:
+                course_name = details
+                prof_loc = "???"
+
             # print(f"FOUND: {date} | {time} | {details}")
             results.append({
                 "date": date,
                 "day": day,
                 "time": time,
                 "semester": semester,
-                "details": details
+                "details": details,
+                "course": course_name,
+                "details_without_course": prof_loc
             })
 
     return results

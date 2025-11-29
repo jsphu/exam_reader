@@ -9,7 +9,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
-from config import CONFIG as cfg
+from .config import CONFIG as cfg
 CONFIG = cfg()
 credentials_json = CONFIG.credentials_json
 prefix = CONFIG.file_name_prefix
@@ -55,10 +55,11 @@ def authenticate_google_drive():
 
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            # POINT THIS TO YOUR DOWNLOADED OAUTH CLIENT FILE
+        try:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+        except Exception as e:
+            print(f"An error occured: {e}\nAuthorization needed.")
             flow = InstalledAppFlow.from_client_secrets_file(
                 credentials_json, SCOPES)
             creds = flow.run_local_server(port=0)

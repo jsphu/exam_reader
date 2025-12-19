@@ -32,8 +32,8 @@ def get_target_file_id(service, folder_id, prefix=prefix):
     # Filter strictly for 'startswith'
     for file in files:
         if file['name'].startswith(prefix):
-            print(file['name'])
-            return file['id']
+            # print(file['name'])
+            return file['id'], file['name']
     return None
 
 def get_file_id_from_url(url):

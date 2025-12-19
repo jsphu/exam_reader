@@ -21,7 +21,8 @@ def parse_exam_schedule(text, semester_filter):
 
     # 2. DEFINE THE PATTERN
     # Explanation of Regex:
-    # (\d{2}/\d{2}/\d{4})      -> Capture Date (Group 1)
+    # (\d{2}/\d{2}/\d{4})      -> Capture Date (Group 1) MIDTERMS
+    # (\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})? -> Capture Two Dates (Alternate Group 1) FINALS/MAKEUP
     # \s+([A-Za-zÇĞİÖŞÜçğıöşü]+) -> Capture Day (Group 2)
     # \s+(\d{2}:\d{2}-\d{2}:\d{2}) -> Capture Time (Group 3)
     # \s+(\d+)                 -> Capture SEMESTER (Group 4) - This is what we filter by!
@@ -29,7 +30,7 @@ def parse_exam_schedule(text, semester_filter):
     # (?=\d{2}/\d{2}/\d{4}|$)  -> Stop when we hit the Next Date OR End of String
 
     pattern = re.compile(
-        r"(\d{2}/\d{2}/\d{4})\s+([A-Za-zÇĞİÖŞÜçğıöşü]+)\s+(\d{2}:\d{2}-\d{2}:\d{2})\s+(\d+)\s+(.*?)(?=\d{2}/\d{2}/\d{4}|$)",
+        r"(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})?\s+([A-Za-zÇĞİÖŞÜçğıöşü]+)\s+(\d{2}:\d{2}-\d{2}:\d{2})\s+(\d+)\s+(.*?)(?=\d{2}/\d{2}/\d{4}|$)",
         re.DOTALL | re.IGNORECASE
     )
     details_pattern = re.compile(
@@ -43,12 +44,13 @@ def parse_exam_schedule(text, semester_filter):
 
     for match in matches:
         date = match.group(1)
-        day = match.group(2)
-        time = match.group(3)
-        semester = match.group(4)
+        date_makeup = match.group(2)
+        day = match.group(3)
+        time = match.group(4)
+        semester = match.group(5)
         # The "details" block contains Course Name, Prof, and Room mixed together.
         # We replace newlines with spaces to make it look clean.
-        details = match.group(5).replace("\n", " ").strip()
+        details = match.group(6).replace("\n", " ").strip()
         # Remove extra spaces
         details = re.sub(r'\s+', ' ', details)
 
@@ -71,6 +73,7 @@ def parse_exam_schedule(text, semester_filter):
             # print(f"FOUND: {date} | {time} | {details}")
             results.append({
                 "date": date,
+                "date_makeup": date_makeup,
                 "day": day,
                 "time": time,
                 "semester": semester,

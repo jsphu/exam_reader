@@ -6,6 +6,7 @@ class CONFIG:
         self.port = "9222"
         self.text = "//a[contains(text(), 'Sınav Programları')]"
         self.file_name_prefix = "MOLEK"
+        self.is_json_default = False
 
         self.path = self.get_path()
         self.credentials_json = self.get_credentials_json()

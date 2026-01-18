@@ -60,11 +60,21 @@ def main():
         help="Serialize the output as json formatting."
     )
 
+    parser.add_argument(
+        '--show-link',
+        default=CONFIG.is_show_link_default,
+        action=argparse.BooleanOptionalAction,
+        help="show google drive folder link."
+    )
+
     args = parser.parse_args()
 
     try:
         # 0. GET DRIVE LINK
         target_url = iu.href_link_scraper(URL=args.url, port=args.port, text=args.text, chromium_path=args.chromium)
+
+        if args.show_link:
+            print(target_url)
 
         # 1. AUTHENTICATE
         service = drive.authenticate_google_drive()

@@ -7,12 +7,13 @@ class CONFIG:
         self.text = "//a[contains(text(), 'Sınav Programları')]"
         self.file_name_prefix = "MOLEK"
         self.is_json_default = False
+        self.is_show_link_default = False
 
         self.path = self.get_path()
         self.credentials_json = self.get_credentials_json()
         self.chromium_path = self.get_chromium_path()
         self.regex_pattern = r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b" # Example: Extract emails
-        self.target_yariyil = r'\d+'
+        self.target_yariyil = r'5'
 
     def get_chromium_path(self):
         PATH = "/snap/bin/chromium" # chromium available on snap

@@ -14,28 +14,23 @@ def extract_text_and_regex(file_buffer, regex_pattern):
     return matches, full_text
 
 def parse_exam_schedule(text, semester_filter):
-    # 1. PRE-CLEANING
-    # The time is split like "11:00-\n\n12:30". Let's fix that to "11:00-12:30"
+    # "11:00-\n\n12:30" to "11:00-12:30"
     # This makes the Regex much simpler.
     text = re.sub(r"(\d{2}:\d{2}-)\s+(\d{2}:\d{2})", r"\1\2", text)
 
-    # 2. DEFINE THE PATTERN
-    # Explanation of Regex:
-    # (\d{2}/\d{2}/\d{4})      -> Capture Date (Group 1) MIDTERMS
-    # (\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})? -> Capture Two Dates (Alternate Group 1) FINALS/MAKEUP
-    # \s+([A-Za-zÇĞİÖŞÜçğıöşü]+) -> Capture Day (Group 2)
-    # \s+(\d{2}:\d{2}-\d{2}:\d{2}) -> Capture Time (Group 3)
-    # \s+(\d+)                 -> Capture SEMESTER (Group 4) - This is what we filter by!
-    # \s+(.*?)                 -> Capture everything else (Course, Prof, Room) (Group 5)
-    # (?=\d{2}/\d{2}/\d{4}|$)  -> Stop when we hit the Next Date OR End of String
-
     pattern = re.compile(
-        r"(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})?\s+([A-Za-zÇĞİÖŞÜçğıöşü]+)\s+(\d{2}:\d{2}-\d{2}:\d{2})\s+(\d+)\s+(.*?)(?=\d{2}/\d{2}/\d{4}|$)",
+        r"(\d{2}/\d{2}/\d{4})"         # Date (Group 1)
+        r"\s*(\d{2}/\d{2}/\d{4})?"     # Second Date (Group 2)
+        r"\s+([A-Za-zÇĞİÖŞÜçğıöşü]+)"  # Day (Group 3)
+        r"\s+(\d{2}:\d{2}-\d{2}:\d{2})"# Time (Group 4)
+        r"\s+(\d+)"                    # SEMESTER (Group 5)
+        r"\s+(.*?)"                    # everything else (Group 6)
+        r"(?=\d{2}/\d{2}/\d{4}|$)",    # Stop Next Date OR End of String
         re.DOTALL | re.IGNORECASE
     )
     details_pattern = re.compile(
-        r"(.+?)\s+"  # Capture everything up to the title (Course Name)
-        r"((?:Prof\.?|Doç\.?|Dr\.?|\s*Öğr\.?|Üyesi).*$)", # Capture the title and everything after it
+        r"(.+?)\s+"  # everything up to Course Name
+        r"((?:Prof\.?|Doç\.?|Dr\.?|\s*Öğr\.?|Üyesi).*$)", # title and everything after it
         re.DOTALL | re.IGNORECASE
     )
 
@@ -54,7 +49,6 @@ def parse_exam_schedule(text, semester_filter):
         # Remove extra spaces
         details = re.sub(r'\s+', ' ', details)
 
-        # 3. FILTER LOGIC
         if re.fullmatch(str(semester_filter), semester):
             detail_split = details_pattern.match(details)
 
@@ -88,103 +82,124 @@ if __name__ == '__main__':
     # The raw text you scraped from the PDF
     raw_text = """
 2025-2026 Güz Dönemi
-Ara Sınav Programı
+Bitirme ve Bütünleme Sınav Programı
 
 Tarih Gün Saat Yarıyıl Ders Adı Öğretim Üyesi Sınavın Yapılacağı Yer
-12/11/2025 Çarşamba 11:00-
+19/01/2026 Pazartesi 09:00-
 
-12:30 3 BİTKİ DOKU KÜLTÜRÜ Doç. Dr. Cüneyt
+10:30 1 ATATURK ILKELERI VE İNKILAP TARİHİ I
 
-Uçarlı Derslik 6 (YENİ BİNA, KAT -2)
-
-12/11/2025 Çarşamba 11:00-
-
-12:30 7 GENETİK MÜHENDİSLİĞİ
-
-Dr.Öğr. Üyesi
-Semian Karaer
-Uzuner
-
-SB-Derslik 3 (YENİ BİNA),Derslik 4 (YENİ BİNA,
-
-KAT -2)
-
-12/11/2025 Çarşamba 13:30-
-
-15:00 5 İŞ HUKUKU Doç. Dr. Ender
-
-Gülver Derslik 6 (YENİ BİNA, KAT -2)
-
-12/11/2025 Çarşamba 13:30-
-
-15:00 7 FERMENTASYON TEKNOLOJİSİ Doç. Dr. Murat
-
-Pekmez Derslik 6 (YENİ BİNA, KAT -2)
-
-13/11/2025 Perşembe 09:00-
-
-10:30 7 MOLEKÜLER EVRİM Dr.Öğr. Üyesi
-
-Çağatay Tarhan Derslik 6 (YENİ BİNA, KAT -2)
-
-13/11/2025 Perşembe 11:00-
-
-12:30 3 BİYOETİK
-
-Doç Dr. Aslıhan
-Temel
-
-SB-Derslik 3 (YENİ BİNA),Derslik 6 (YENİ BİNA,
-
-KAT -2)
-
-13/11/2025 Perşembe 13:30-
-
-15:00 1 GENEL KİMYA I Dr.Öğr Üyesi
-Furkan Burak Şen
+Öğr. Gör. Melda
+Ağaoğlu
 
 Derslik 6 (YENİ BİNA, KAT -2) DERSLİK 5 (YENİ
 
 BİNA, KAT -2)
 
-13/11/2025 Perşembe 15:30-
+19/01/2026 Pazartesi 09:00-
+10:30 1
 
-17:00 5 RESISTANCE IN BACTERIAL PATHOGENS Dr. Öğr. Üyesi Terje
+YABANCI OGREN CİLER İÇİN ATATÜRK İLKELERİ
 
-Marken Stemum Derslik 6 (YENİ BİNA, KAT -2)
+VE İNKILAP TARİHİ I
 
-14/11/2025 Cuma 09:00-
+Öğr.Gör. Melda
+Ağaoğlu
 
-10:30 5 ENZİMOLOJİ Prof.Dr. Evren Onay
-Uçar
-
-SB-Derslik 3 (YENİ BİNA),Derslik 4 (YENİ BİNA,
-
-KAT -2)
-
-14/11/2025 Cuma 11:00-
-
-12:30 5 VİRÜS BİYOLOJİSİ Prof.Dr. Ali Karagöz SB-Derslik 3 (YENİ BİNA)
-
-14/11/2025 Cuma 14:00-
-
-15:30 7 KÖK HÜCRE BİYOLOJİSİ Prof. Dr. Gülruh
-
-Albayrak Derslik 6 (YENİ BİNA, KAT -2)
-
-14/11/2025 Cuma 15:45-
-
-17:15 3 HAYVAN DOKU KÜLTÜRÜ Prof. Dr. Ali Karagöz SB-Derslik 3 (YENİ BİNA)
-
-17/11/2025 Pazartesi 09:00-
-
-10:30 7 KANSER BİYOLOJİSİ Prof.Dr. Ali Karagöz Derslik 6 (YENİ BİNA, KAT -2) DERSLİK 5 (YENİ
+Derslik 6 (YENİ BİNA, KAT -2) DERSLİK 5 (YENİ
 
 BİNA, KAT -2)
 
-17/11/2025 Pazartesi 11:00-
+19/01/2026 Pazartesi 11:00-
 
-12:30 1
+12:30 1 TÜRK DİLİ I
+
+Okt. Emine
+V.O.Çamlıbel
+
+Derslik 6 (YENİ BİNA, KAT -2) DERSLİK 5 (YENİ
+BİNA, KAT -2), MGB-118
+
+19/01/2026 Pazartesi 11:00-
+
+12:30 1 YABANCI OGRENCILER İÇİN TÜRK DİLİ I
+
+Okt. Emine
+Y.O.Çamlıbel
+
+Derslik 6 (YENİ BİNA, KAT -2) DERSLİK 5 (YENİ
+BİNA, KAT -2), MGB-118
+
+19/01/2026 Pazartesi 13:30-
+
+15:00 3 MOLEKÜLER MİKROBİYOLOJİ Prof. Dr. Gülruh
+
+Albayrak SB-Amfi (YENİ BİNA)
+
+19/01/2026 Pazartesi 15:30-
+
+17:00 7 GENETİK KAYNAKLAR VE KORUMA
+
+Dr.Öğr. Üyesi Fatma
+Elif Çepni
+Yüzbaşioğlu
+
+MBG-118
+
+20/01/2026 Salı 11:00-
+
+12:30 3 İŞ SAĞLIĞI VE GÜVENLİĞİ Prof. Dr. Sabriye
+
+Perçin Özkorucuklu Derslik 6 (YENİ BİNA, KAT -2)
+
+20/01/2026 Salı 11:00-
+
+12:30 5 GÖNÜLLÜLÜK ÇALIŞMALARI
+
+Dr. Öğr. Üyesi
+Semian Karaer
+Uzuner
+
+Derslik 6 (YENİ BİNA, KAT -2)
+
+20/01/2026 Salı 11:00-
+
+12:30 7 GENOMİK Prof. Dr. Şule An Derslik 6 (YENİ BİNA, KAT -2)
+
+20/01/2026 Salı 13:30-
+
+15:00 5 HÜCRE BİYOLOJİSİ II Prof Dr. Bedia
+Palabıyık
+
+SB-Derslik 3 (YENİ BİNA),Derslik 6 (YENİ BİNA,
+
+KAT -2)
+
+20/01/2026 Salı 15:30-
+
+17:00 7 BİYOKOZMETİKLER
+
+Dr. Öğr. Üyesi
+Fatma Elif Çepni
+Yüzbaşioğlu
+
+MAT.BÖL. SEM. SAL.
+
+21/01/2026 Çarşamba 09:00-
+10:30 1
+
+INTRODUCTION TO COMPUTER SCIENCE AND
+
+PROGRAMMING
+
+Dr.Oğr. Üyesi
+Kemal Şanlı Derslik 4 (YENİ BİNA, KAT -2)
+
+21/01/2026 Çarşamba 09:00-
+
+10:30 3 BİLİM TARİHİ VE FELSEFESİ Dr. Öğr. Üyesi
+
+Çağatay Tarhan Derslik 4 (YENİ BİNA, KAT -2)
     """
 
     # --- RUN IT ---

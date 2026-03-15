@@ -1,0 +1,22 @@
+# Browser configuration
+url: "https://fen.istanbul.edu.tr"
+port: "9222"
+chromium_path: "" # Leave empty to use auto-detection
+
+# Scraper configuration
+search_xpath: "//a[.//span[contains(., 'Sınav Programları')]]"
+file_name_prefix: "MOLEK"
+regex_pattern: "\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b"
+target_yariyil: "6"
+
+# verbose: "v"
+labels: true
+extend: false
+
+# Cache and behavior
+is_json_default: false
+is_show_link_default: false
+cache_pdf_always: false
+cache_md_always: false
+use_cached_pdf: false
+use_cached_md: true

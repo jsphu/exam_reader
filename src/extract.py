@@ -1,4 +1,7 @@
 import re
+import logging
+
+logger = logging.getLogger("exam_reader")
 
 def save_pdf(file_buffer , path):
     """Saves PDF buffer to a file safely without exhausting the stream."""
@@ -58,12 +61,12 @@ def extract_text_and_regex(file_buffer, regex_pattern, save_markdown_to: str="",
     # docling needs a DocumentStream for in-memory buffers
     doc_stream = DocumentStream(name="exam.pdf", stream=file_buffer)
 
-    print(f"INFO: Running docling extraction on the provided PDF...")
+    logger.debug(f"INFO: Running docling extraction on the provided PDF...")
     md_text = convert_to_markdown(doc_stream)
-    print(f"INFO: Extraction finished. Markdown length: {len(md_text)} characters.")
+    logger.debug(f"INFO: Extraction finished. Markdown length: {len(md_text)} characters.")
 
     if not md_text.strip():
-        print("WARNING: Docling extraction returned empty text. Check the PDF content.")
+        logger.warning("WARNING: Docling extraction returned empty text. Check the PDF content.")
 
     if save_markdown_to:
         with open(save_markdown_to, "w") as file:
@@ -212,16 +215,21 @@ def parse_exam_schedule(text, semester_filter):
 if __name__ == '__main__':
     # Test with the example file
     try:
+        from .logger import setup_logger
+        setup_logger(True) # Force true for testing
         with open("../docling_output.md", "r") as f:
             md_content = f.read()
 
         # Test semester filter
         semester="6"
         matches = parse_exam_schedule(md_content, semester)
-        print(f"WARNING: Running through src/extract.py, outside of CLI. Selected {semester=}")
-        print("SAAT  TARİH(LER)  GÜN  | DERS ADI      | YERİ\n"
+        logger.warning(f"WARNING: Running through src/extract.py, outside of CLI. Selected {semester=}")
+        logger.info("SAAT  TARİH(LER)  GÜN  | DERS ADI      | YERİ\n"
         "----  ----------- ---- | ------------- | --------------------")
         for m in matches:
-            print(f"{m['time'][:5]} {m['date'][:5]:<11} {m['day'][:4]} | {m['course'][:13]:<13} | {m['location'][:35]}")
+            logger.info(f"{m['time'][:5]} {m['date'][:5]:<11} {m['day'][:4]} | {m['course'][:13]:<13} | {m['location'][:35]}")
     except FileNotFoundError:
-        print("docling_output.md not found for testing")
+        logger.error("docling_output.md not found for testing")
+    except ImportError:
+        # Fallback if logger can't be imported during direct execution
+        print("Logger not found, falling back to print for test")

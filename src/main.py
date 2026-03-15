@@ -1,6 +1,5 @@
 import argparse
-import unicodedata
-import sys
+from os import path
 
 import src.drive as drive
 import src.extract as extract
@@ -67,40 +66,96 @@ def main():
         help="show google drive folder link."
     )
 
+    parser.add_argument(
+        '--cache-pdf',
+        default=CONFIG.cache_pdf_always,
+        action=argparse.BooleanOptionalAction,
+        help="Download original exam schedule pdf"
+    )
+
+    parser.add_argument(
+        '--cache-md',
+        default=CONFIG.cache_md_always,
+        action=argparse.BooleanOptionalAction,
+        help="Cache original PDF as markdown"
+    )
+
+    parser.add_argument(
+        '--use-cached-pdf',
+        default=CONFIG.use_cached_pdf,
+        action=argparse.BooleanOptionalAction,
+        help="Use cached pdf instead of scraping web to find it."
+    )
+
+    parser.add_argument(
+        '--use-cached-md',
+        default=CONFIG.use_cached_md,
+        action=argparse.BooleanOptionalAction,
+        help="Use directly cached markdown instead of parsing pdf."
+    )
+
     args = parser.parse_args()
 
+    pdf_stream = None
+
     try:
-        # 0. GET DRIVE LINK
-        target_url = iu.href_link_scraper(URL=args.url, port=args.port, text=args.text, chromium_path=args.chromium)
+        pdf_path, md_path = "", ""
+        if args.cache_pdf or args.use_cached_pdf:
+            pdf_path=CONFIG.cached_pdf
+        if args.cache_md or args.use_cached_md:
+            md_path=CONFIG.cached_md
 
-        if args.show_link:
-            print(target_url)
+        if args.use_cached_md:
+            file_name = "cached.md"
+        elif args.use_cached_pdf:
+            with open(pdf_path, 'rb') as pdf:
+                pdf_stream = pdf.read()
 
-        # 1. AUTHENTICATE
-        service = drive.authenticate_google_drive()
+            file_name = "cached.pdf"
+        else:
+            # 0. GET DRIVE LINK
+            target_url = iu.href_link_scraper(URL=args.url, port=args.port, text=args.text, chromium_path=args.chromium)
 
-        # 2. GET FOLDER ID
-        folder_id = drive.get_file_id_from_url(target_url)
-        if not folder_id:
-            print("Error: Could not parse Folder ID from the provided URL.")
-            return
+            if args.show_link:
+                print(target_url)
 
-        # 3. FIND TARGET FILE ID
-        file_id, file_name = drive.get_target_file_id(service, folder_id, args.prefix)
+            # 1. AUTHENTICATE
+            service = drive.authenticate_google_drive()
 
-        if not file_id:
-            print(f"Error: File starting with '{args.prefix}' not found in folder.")
-            return
+            # 2. GET FOLDER ID
+            folder_id = drive.get_file_id_from_url(target_url)
+            if not folder_id:
+                print("Error: Could not parse Folder ID from the provided URL.")
+                return
 
-        # 4. DOWNLOAD PDF CONTENT
-        pdf_stream = drive.download_pdf_to_memory(service, file_id)
+            # 3. FIND TARGET FILE ID
+            file_id, file_name = drive.get_target_file_id(service, folder_id, args.prefix)
 
-        # 4.1 SCRAPE AND REGEX
-        _, raw_text = extract.extract_text_and_regex(pdf_stream, args.semester)
+            if not file_id:
+                print(f"Error: File starting with '{args.prefix}' not found in folder.")
+                return
+
+            # 4. DOWNLOAD PDF CONTENT
+            pdf_stream = drive.download_pdf_to_memory(service, file_id)
+
+        if args.use_cached_md:
+            with open(md_path, 'r') as file:
+                raw_text = file.read()
+        else:
+            # 4.1 SCRAPE AND REGEX
+            _, raw_text = extract.extract_text_and_regex(
+                file_buffer=pdf_stream,
+                regex_pattern=args.semester,
+                save_markdown_to=md_path,
+                save_pdf_to=pdf_path)
 
         # 5. PARSE AND FILTER SCHEDULE
         matches = extract.parse_exam_schedule(raw_text, args.semester)
-        # Print header
+
+        if not matches:
+            print(f"Warning: No exam matches found for semester '{args.semester}'.")
+            if not args.json:
+                print("Double-check the PDF content and the semester filter.")
 
         if args.json:
             import json
@@ -123,13 +178,12 @@ def main():
                 time = match['time']
                 # The "details" block contains Course Name, Prof, and Room mixed together.
                 # We replace newlines with spaces to make it look clean.
-                details = match['details'] # Remove extra spaces
+                # dextails = match['details'] # Remove extra spaces
                 prof_loc = match['details_without_course']
+                location = match['location']
                 course_name = match['course']
 
-                padding = sum(1 for char in course_name if char in set('ÇĞÜŞİÖçğiöşü'))
-
-                print(f"{time[:5]} {date} {day[:4]} | {course_name[:13]}{padding*' '} | {prof_loc}")
+                print(f"{time[:5]} {date} {day[:4]} | {course_name[:13]:<13} | {location[:35]}")
     except Exception as e:
         print(f"\nAn unrecoverable error occurred: {e}")
 

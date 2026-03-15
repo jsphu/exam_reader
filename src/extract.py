@@ -1,207 +1,227 @@
-from pypdf import PdfReader
 import re
 
-def extract_text_and_regex(file_buffer, regex_pattern):
-    """Reads PDF from memory, extracts text, and applies Regex."""
-    reader = PdfReader(file_buffer)
-    full_text = ""
-    # Extract text from all pages
-    for page in reader.pages:
-        full_text += page.extract_text() + "\n"
+def save_pdf(file_buffer , path):
+    """Saves PDF buffer to a file safely without exhausting the stream."""
+    if hasattr(file_buffer, 'getvalue'):
+        data = file_buffer.getvalue()
+    elif hasattr(file_buffer, 'read'):
+        original_pos = 0
+        if hasattr(file_buffer, 'tell'):
+            original_pos = file_buffer.tell()
+        if hasattr(file_buffer, 'seek'):
+            file_buffer.seek(0)
+        data = file_buffer.read()
+        if hasattr(file_buffer, 'seek'):
+            file_buffer.seek(original_pos)
+    else:
+        data = file_buffer
 
-    # Apply Regex
-    matches = re.findall(regex_pattern, full_text)
-    return matches, full_text
+    with open(path, 'wb') as file:
+        file.write(data)
+
+def convert_to_markdown(docling_stream):
+    from docling.datamodel.base_models import InputFormat
+    from docling.document_converter import DocumentConverter, PdfFormatOption
+    from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode
+
+    # Configure pipeline options for better table extraction
+    pipeline_options = PdfPipelineOptions()
+    pipeline_options.do_table_structure = True
+    pipeline_options.table_structure_options.mode = TableFormerMode.ACCURATE
+    pipeline_options.table_structure_options.do_cell_matching = True
+    
+    # Optional: Enable OCR if needed (can be very slow)
+    # pipeline_options.do_ocr = True 
+
+    converter = DocumentConverter(
+        allowed_formats=[InputFormat.PDF],
+        format_options={
+            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+        }
+    )
+    
+    conversion = converter.convert(docling_stream)
+    # Export to markdown as it contains the table structures
+    return conversion.document.export_to_markdown()
+
+def extract_text_and_regex(file_buffer, regex_pattern, save_markdown_to: str="", save_pdf_to: str=""):
+    from docling.datamodel.base_models import DocumentStream
+
+    """Uses docling to extract text/tables from PDF and returns as Markdown."""
+    # Ensure we are at the start of the buffer
+    if hasattr(file_buffer, 'seek'):
+        file_buffer.seek(0)
+
+    if save_pdf_to:
+        save_pdf(file_buffer, save_pdf_to)
+
+    # docling needs a DocumentStream for in-memory buffers
+    doc_stream = DocumentStream(name="exam.pdf", stream=file_buffer)
+
+    print(f"INFO: Running docling extraction on the provided PDF...")
+    md_text = convert_to_markdown(doc_stream)
+    print(f"INFO: Extraction finished. Markdown length: {len(md_text)} characters.")
+
+    if not md_text.strip():
+        print("WARNING: Docling extraction returned empty text. Check the PDF content.")
+
+    if save_markdown_to:
+        with open(save_markdown_to, "w") as file:
+            file.write(md_text)
+
+    # The original function returned (matches, full_text).
+    # We return ([], md_text) to maintain signature, though matches isn't used much in main.py
+    return [], md_text
 
 def parse_exam_schedule(text, semester_filter):
-    # "11:00-\n\n12:30" to "11:00-12:30"
-    # This makes the Regex much simpler.
-    text = re.sub(r"(\d{2}:\d{2}-)\s+(\d{2}:\d{2})", r"\1\2", text)
+    """Parses exam schedule from docling-generated markdown text."""
 
-    pattern = re.compile(
-        r"(\d{2}/\d{2}/\d{4})"         # Date (Group 1)
-        r"\s*(\d{2}/\d{2}/\d{4})?"     # Second Date (Group 2)
-        r"\s+([A-Za-zÇĞİÖŞÜçğıöşü]+)"  # Day (Group 3)
-        r"\s+(\d{2}:\d{2}-\d{2}:\d{2})"# Time (Group 4)
-        r"\s+(\d+)"                    # SEMESTER (Group 5)
-        r"\s+(.*?)"                    # everything else (Group 6)
-        r"(?=\d{2}/\d{2}/\d{4}|$)",    # Stop Next Date OR End of String
-        re.DOTALL | re.IGNORECASE
-    )
-    details_pattern = re.compile(
-        r"(.+?)\s+"  # everything up to Course Name
-        r"((?:Prof\.?|Doç\.?|Dr\.?|\s*Öğr\.?|Üyesi).*$)", # title and everything after it
-        re.DOTALL | re.IGNORECASE
-    )
+    # Regex patterns for identifying fields in cells
+    date_pattern = re.compile(r"\d{2}/\d{2}/\d{4}")
+    time_pattern = re.compile(r"\d{2}:\d{2}\s*-\s*\d{2}:\d{2}")
+    day_pattern = re.compile(r"(Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi|Pazar)", re.IGNORECASE)
+    semester_pattern = re.compile(r"^\s*(\d+)\s*$")
 
-    matches = pattern.finditer(text)
+    # Instructor identification
+    instructor_keywords = r"(Prof\.|Doç\.|Dr\.|Öğr\.)"
+    instructor_pattern = re.compile(instructor_keywords + r".*", re.IGNORECASE)
+
     results = []
 
-    for match in matches:
-        date = match.group(1)
-        date_makeup = match.group(2)
-        day = match.group(3)
-        time = match.group(4)
-        semester = match.group(5)
-        # The "details" block contains Course Name, Prof, and Room mixed together.
-        # We replace newlines with spaces to make it look clean.
-        details = match.group(6).replace("\n", " ").strip()
-        # Remove extra spaces
-        details = re.sub(r'\s+', ' ', details)
+    # Split text into lines
+    lines = text.split('\n')
 
-        if re.fullmatch(str(semester_filter), semester):
-            detail_split = details_pattern.match(details)
+    for line in lines:
+        if '|' not in line:
+            continue
 
-            if detail_split:
-                course_name = detail_split.group(1).strip()
-                prof_loc = detail_split.group(2).strip()
+        # Skip header separators
+        if '---' in line:
+            continue
 
-                prof_loc = re.sub(r'\s*\(.+?\)', '', prof_loc)
-                prof_loc = re.sub(r'\s*\d{4}-\d{4}.*', '', prof_loc)
-                prof_loc = re.sub(r'\s+', ' ', prof_loc).strip()
+        cells = [cell.strip() for cell in line.split('|')]
+        # Remove empty first and last cells if they exist (due to leading/trailing |)
+        if cells and not cells[0]: cells.pop(0)
+        if cells and not cells[-1]: cells.pop(-1)
 
+        # Skip headers or empty lines
+        if not cells or any(h in cells[0] for h in ["Tarih", "Ara Sınav", "Sınav Programı"]):
+            continue
+
+        data = {
+            "date": "",
+            "date_makeup": "", # Not easily separable in docling table sometimes, but we'll try
+            "day": "",
+            "time": "",
+            "semester": "",
+            "course": "",
+            "instructor": "",
+            "location": "",
+            "details": "" # For compatibility with original main.py expectations
+        }
+
+        assigned_cells = set()
+
+        # Pass 1: Extract clearly identifiable fields
+        for i, cell in enumerate(cells):
+            if not cell: continue
+
+            found = False
+            # Date
+            date_matches = date_pattern.findall(cell)
+            if date_matches:
+                if not data["date"]:
+                    data["date"] = date_matches[0]
+                    if len(date_matches) > 1:
+                        data["date_makeup"] = date_matches[1]
+                found = True
+
+            # Time
+            time_match = time_pattern.search(cell)
+            if time_match:
+                if not data["time"]: data["time"] = time_match.group().replace(" ", "")
+                found = True
+
+            # Day
+            day_match = day_pattern.search(cell)
+            if day_match:
+                if not data["day"]: data["day"] = day_match.group()
+                found = True
+
+            # Semester
+            sem_match = semester_pattern.search(cell)
+            if sem_match:
+                if not data["semester"]: data["semester"] = sem_match.group(1)
+                found = True
+
+            # Instructor
+            inst_match = instructor_pattern.search(cell)
+            if inst_match:
+                if not data["instructor"]: data["instructor"] = inst_match.group().strip()
+                found = True
+
+            if found:
+                assigned_cells.add(i)
+
+        # Pass 2: Course and Location based on remaining cells
+        unassigned = [i for i in range(len(cells)) if i not in assigned_cells and cells[i]]
+
+        for i in unassigned:
+            cell = cells[i]
+            # Heuristic: Location often contains specific keywords
+            if any(word in cell.upper() for word in ["DERSLİK", "AMFİ", "LAB", "BİNA", "MBG-", "SB-", "ODASI"]):
+                if not data["location"]:
+                    data["location"] = cell
+                else:
+                    data["location"] += ", " + cell
+            elif not data["course"]:
+                data["course"] = cell
             else:
-                course_name = details
-                prof_loc = "???"
+                # If we already have a course, check if it's an instructor we missed or more location
+                if any(word in cell for word in ["Prof", "Dr", "Gör", "Doç"]):
+                    if not data["instructor"]: data["instructor"] = cell
+                    else: data["instructor"] += ", " + cell
+                else:
+                    data["location"] = (data["location"] + ", " + cell) if data["location"] else cell
 
-            # print(f"FOUND: {date} | {time} | {details}")
-            results.append({
-                "date": date,
-                "date_makeup": date_makeup,
-                "day": day,
-                "time": time,
-                "semester": semester,
-                "details": details,
-                "course": course_name,
-                "details_without_course": prof_loc
-            })
+        # Filter by semester if semester_filter is provided
+        if semester_filter and data["semester"]:
+            try:
+                if not re.fullmatch(str(semester_filter), data["semester"]):
+                    continue
+            except re.error:
+                # If filter is not a valid regex, try direct comparison
+                if str(semester_filter) != data["semester"]:
+                    continue
+
+        # Post-processing
+        if data["date"] or data["course"]:
+            # Clean up instructor/location
+            data["instructor"] = re.sub(r'\s+', ' ', data["instructor"]).strip()
+            data["location"] = re.sub(r'\s+', ' ', data["location"]).strip()
+
+            # For main.py compatibility
+            data["details"] = f"{data['instructor']} {data['location']}".strip()
+            data["course"] = data["course"].strip()
+            data["details_without_course"] = data["details"]
+
+            results.append(data)
 
     return results
 
 if __name__ == '__main__':
-    # The raw text you scraped from the PDF
-    raw_text = """
-2025-2026 Güz Dönemi
-Bitirme ve Bütünleme Sınav Programı
+    # Test with the example file
+    try:
+        with open("../docling_output.md", "r") as f:
+            md_content = f.read()
 
-Tarih Gün Saat Yarıyıl Ders Adı Öğretim Üyesi Sınavın Yapılacağı Yer
-19/01/2026 Pazartesi 09:00-
-
-10:30 1 ATATURK ILKELERI VE İNKILAP TARİHİ I
-
-Öğr. Gör. Melda
-Ağaoğlu
-
-Derslik 6 (YENİ BİNA, KAT -2) DERSLİK 5 (YENİ
-
-BİNA, KAT -2)
-
-19/01/2026 Pazartesi 09:00-
-10:30 1
-
-YABANCI OGREN CİLER İÇİN ATATÜRK İLKELERİ
-
-VE İNKILAP TARİHİ I
-
-Öğr.Gör. Melda
-Ağaoğlu
-
-Derslik 6 (YENİ BİNA, KAT -2) DERSLİK 5 (YENİ
-
-BİNA, KAT -2)
-
-19/01/2026 Pazartesi 11:00-
-
-12:30 1 TÜRK DİLİ I
-
-Okt. Emine
-V.O.Çamlıbel
-
-Derslik 6 (YENİ BİNA, KAT -2) DERSLİK 5 (YENİ
-BİNA, KAT -2), MGB-118
-
-19/01/2026 Pazartesi 11:00-
-
-12:30 1 YABANCI OGRENCILER İÇİN TÜRK DİLİ I
-
-Okt. Emine
-Y.O.Çamlıbel
-
-Derslik 6 (YENİ BİNA, KAT -2) DERSLİK 5 (YENİ
-BİNA, KAT -2), MGB-118
-
-19/01/2026 Pazartesi 13:30-
-
-15:00 3 MOLEKÜLER MİKROBİYOLOJİ Prof. Dr. Gülruh
-
-Albayrak SB-Amfi (YENİ BİNA)
-
-19/01/2026 Pazartesi 15:30-
-
-17:00 7 GENETİK KAYNAKLAR VE KORUMA
-
-Dr.Öğr. Üyesi Fatma
-Elif Çepni
-Yüzbaşioğlu
-
-MBG-118
-
-20/01/2026 Salı 11:00-
-
-12:30 3 İŞ SAĞLIĞI VE GÜVENLİĞİ Prof. Dr. Sabriye
-
-Perçin Özkorucuklu Derslik 6 (YENİ BİNA, KAT -2)
-
-20/01/2026 Salı 11:00-
-
-12:30 5 GÖNÜLLÜLÜK ÇALIŞMALARI
-
-Dr. Öğr. Üyesi
-Semian Karaer
-Uzuner
-
-Derslik 6 (YENİ BİNA, KAT -2)
-
-20/01/2026 Salı 11:00-
-
-12:30 7 GENOMİK Prof. Dr. Şule An Derslik 6 (YENİ BİNA, KAT -2)
-
-20/01/2026 Salı 13:30-
-
-15:00 5 HÜCRE BİYOLOJİSİ II Prof Dr. Bedia
-Palabıyık
-
-SB-Derslik 3 (YENİ BİNA),Derslik 6 (YENİ BİNA,
-
-KAT -2)
-
-20/01/2026 Salı 15:30-
-
-17:00 7 BİYOKOZMETİKLER
-
-Dr. Öğr. Üyesi
-Fatma Elif Çepni
-Yüzbaşioğlu
-
-MAT.BÖL. SEM. SAL.
-
-21/01/2026 Çarşamba 09:00-
-10:30 1
-
-INTRODUCTION TO COMPUTER SCIENCE AND
-
-PROGRAMMING
-
-Dr.Oğr. Üyesi
-Kemal Şanlı Derslik 4 (YENİ BİNA, KAT -2)
-
-21/01/2026 Çarşamba 09:00-
-
-10:30 3 BİLİM TARİHİ VE FELSEFESİ Dr. Öğr. Üyesi
-
-Çağatay Tarhan Derslik 4 (YENİ BİNA, KAT -2)
-    """
-
-    # --- RUN IT ---
-    target_yariyil = 5
-    exams = parse_exam_schedule(raw_text, target_yariyil)
+        # Test semester filter
+        semester="6"
+        matches = parse_exam_schedule(md_content, semester)
+        print(f"WARNING: Running through src/extract.py, outside of CLI. Selected {semester=}")
+        print("SAAT  TARİH(LER)  GÜN  | DERS ADI      | YERİ\n"
+        "----  ----------- ---- | ------------- | --------------------")
+        for m in matches:
+            print(f"{m['time'][:5]} {m['date'][:5]:<11} {m['day'][:4]} | {m['course'][:13]:<13} | {m['location'][:35]}")
+    except FileNotFoundError:
+        print("docling_output.md not found for testing")

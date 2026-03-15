@@ -32,8 +32,7 @@ def href_link_scraper(URL, port, text, chromium_path):
         href_link = element.get_attribute('href')
 
     except Exception as e:
-        print(f"Error: {e}")
-        href_link = None
+        Exception(f"Error: {e}")
 
     finally:
         # Check if driver was actually created before quitting

@@ -34,7 +34,7 @@ def get_target_file_id(service, folder_id, prefix=prefix):
         if file['name'].startswith(prefix):
             # print(file['name'])
             return file['id'], file['name']
-    return None
+    return None, None
 
 def get_file_id_from_url(url):
     """Extracts the Google Drive file ID from a URL string."""
@@ -74,14 +74,13 @@ def download_pdf_to_memory(service, file_id):
     request = service.files().get_media(fileId=file_id)
     file_buffer = io.BytesIO()
     downloader = MediaIoBaseDownload(file_buffer, request)
-    
+
     done = False
     while done is False:
         status, done = downloader.next_chunk()
         # Optional: Print download progress
         # print(f"Download {int(status.progress() * 100)}%.")
-    
+
     # Reset buffer position to the beginning so readers can read it
     file_buffer.seek(0)
     return file_buffer
-

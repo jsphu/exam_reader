@@ -28,6 +28,8 @@ class CONFIG:
         self.verbose = ""
         self.labels = True
         self.extend = False
+        self.track = False
+        self.tracker_focus = ""
 
         # Load from config.yaml if it exists
         self._load_config()
@@ -40,6 +42,7 @@ class CONFIG:
             
         self.cached_pdf = self.get_cached_pdf()
         self.cached_md = self.get_cached_md()
+        self.tracker_storage = os.path.join(self.get_path(), "previous_results.json")
 
         self.set_verbose_level()
 
@@ -71,6 +74,8 @@ class CONFIG:
                 self.verbose = data.get("verbose") or self.verbose
                 self.labels = data.get("labels") or self.labels
                 self.extend = data.get("extend") or self.extend
+                self.track = data.get("track") or self.track
+                self.tracker_focus = str(data.get("tracker_focus", self.tracker_focus))
         except Exception as e:
             logger.error(f"Error loading {self.config_file}: {e}")
 

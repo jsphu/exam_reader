@@ -6,6 +6,7 @@ import src.drive as drive
 import src.extract as extract
 import src.config as config
 import src.iufen_exam_scraper as iu
+import src.tracker as tracker
 from .logger import setup_logger
 
 logger = logging.getLogger("exam_reader")
@@ -106,6 +107,13 @@ def main():
         help="Extend column width as long as it goes"
     )
 
+    parser.add_argument(
+        '--track',
+        default=CONFIG.track,
+        action=argparse.BooleanOptionalAction,
+        help="Check for changes from previous run."
+    )
+
     args = parser.parse_args()
     if args.verbose is not None:
         CONFIG.verbose = "v" * args.verbose
@@ -171,6 +179,46 @@ def main():
         logger.log(1, "Parsing raw text into schedule structure...")
         matches = extract.parse_exam_schedule(raw_text, args.semester)
 
+        if args.track:
+            logger.log(20, "Checking for changes...")
+            import re
+            previous_results = tracker.load_previous_results(CONFIG.tracker_storage)
+            
+            # 1. Filter matches by tracker_focus
+            if CONFIG.tracker_focus:
+                matches = [m for m in matches if re.search(str(CONFIG.tracker_focus), str(m.get('semester', '')))]
+            
+            # 2. Filter previous_results by tracker_focus
+            if CONFIG.tracker_focus:
+                filtered_previous = {}
+                for cid, m in previous_results.items():
+                    if re.search(str(CONFIG.tracker_focus), str(m.get('semester', ''))):
+                        filtered_previous[cid] = m
+                previous_results = filtered_previous
+
+            changes, current_dict = tracker.compare_results(matches, previous_results)
+            
+            if changes:
+                logger.log(50, "\n" + "="*40)
+                logger.log(50, "   CHANGE TRACKER: UPDATES DETECTED")
+                logger.log(50, "="*40)
+                for change in changes:
+                    logger.log(50, change)
+                logger.log(50, "="*40 + "\n")
+            else:
+                logger.log(50, "No changes detected since last run.")
+            
+            # 3. Save only what matched the tracker_focus (and current runs results)
+            # If focus is enabled, current_dict already contains ONLY focused exams.
+            # If focus is NOT enabled, we update previous_results (which still has all semesters).
+            if CONFIG.tracker_focus:
+                tracker.save_current_results(CONFIG.tracker_storage, current_dict)
+            else:
+                previous_results.update(current_dict)
+                tracker.save_current_results(CONFIG.tracker_storage, previous_results)
+
+            exit(0 if changes else 1) # Exit after tracking
+
         if not matches:
             logger.log(40, f"Warning: No exam matches found for semester '{args.semester}'.")
             if not args.json:
@@ -214,7 +262,7 @@ def main():
                 # We replace newlines with spaces to make it look clean.
                 # dextails = match['details'] # Remove extra spaces
                 prof_loc = match['details_without_course']
-                location = match['location'] or "---"
+                location = match['location'] or "???"
                 course_name = match['course']
                 if not args.extend:
                     course_name = course_name[:13]

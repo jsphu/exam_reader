@@ -20,3 +20,7 @@ cache_pdf_always: false
 cache_md_always: false
 use_cached_pdf: false
 use_cached_md: true
+
+# track mode
+track: false
+tracker_focus: "6"

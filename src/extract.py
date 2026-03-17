@@ -1,4 +1,6 @@
+from contextlib import redirect_stdout, redirect_stderr
 import re
+import os
 import logging
 
 logger = logging.getLogger("exam_reader")
@@ -36,6 +38,7 @@ def convert_to_markdown(docling_stream):
     # Optional: Enable OCR if needed (can be very slow)
     # pipeline_options.do_ocr = True 
 
+    logger.log(10, "Initializing DocumentConverter.")
     converter = DocumentConverter(
         allowed_formats=[InputFormat.PDF],
         format_options={
@@ -43,8 +46,12 @@ def convert_to_markdown(docling_stream):
         }
     )
     
-    conversion = converter.convert(docling_stream)
+    logger.log(40, "Starting converter...")
+    with open(os.devnull, 'w') as fnull:
+        with redirect_stdout(fnull), redirect_stderr(fnull):
+            conversion = converter.convert(docling_stream)
     # Export to markdown as it contains the table structures
+    logger.log(30, "Conversion done! Exporting to markdown")
     return conversion.document.export_to_markdown()
 
 def extract_text_and_regex(file_buffer, regex_pattern, save_markdown_to: str="", save_pdf_to: str=""):
@@ -58,19 +65,23 @@ def extract_text_and_regex(file_buffer, regex_pattern, save_markdown_to: str="",
     if save_pdf_to:
         save_pdf(file_buffer, save_pdf_to)
 
-    # docling needs a DocumentStream for in-memory buffers
-    doc_stream = DocumentStream(name="exam.pdf", stream=file_buffer)
+    logger.log(30, "Streaming document into DocumentStream")
+    with open(os.devnull, 'w') as fnull:
+        with redirect_stdout(fnull), redirect_stderr(fnull):
+            # docling needs a DocumentStream for in-memory buffers
+            doc_stream = DocumentStream(name="exam.pdf", stream=file_buffer)
 
-    logger.debug(f"INFO: Running docling extraction on the provided PDF...")
+    logger.log(30, f"INFO: Running docling extraction on the provided PDF...")
     md_text = convert_to_markdown(doc_stream)
-    logger.debug(f"INFO: Extraction finished. Markdown length: {len(md_text)} characters.")
+    logger.log(30, f"INFO: Extraction finished. Markdown length: {len(md_text)} characters.")
 
     if not md_text.strip():
-        logger.warning("WARNING: Docling extraction returned empty text. Check the PDF content.")
+        logger.log(40, "WARNING: Docling extraction returned empty text. Check the PDF content.")
 
     if save_markdown_to:
         with open(save_markdown_to, "w") as file:
             file.write(md_text)
+            logger.log(30, f"Markdown sucessfully written to: {save_markdown_to}")
 
     # The original function returned (matches, full_text).
     # We return ([], md_text) to maintain signature, though matches isn't used much in main.py

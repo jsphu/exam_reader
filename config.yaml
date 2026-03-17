@@ -2,6 +2,7 @@
 url: "https://fen.istanbul.edu.tr"
 port: "9222"
 chromium_path: "" # Leave empty to use auto-detection
+sleep_time: 3 # wait for webpage to render, ideal is 3 seconds
 
 # Scraper configuration
 search_xpath: "//a[.//span[contains(., 'Sınav Programları')]]"

@@ -30,6 +30,7 @@ class CONFIG:
         self.extend = False
         self.track = False
         self.tracker_focus = ""
+        self.sleep_time = 2
 
         # Load from config.yaml if it exists
         self._load_config()
@@ -76,6 +77,7 @@ class CONFIG:
                 self.extend = data.get("extend") or self.extend
                 self.track = data.get("track") or self.track
                 self.tracker_focus = str(data.get("tracker_focus", self.tracker_focus))
+                self.sleep_time = int(data.get("sleep_time", self.sleep_time))
         except Exception as e:
             logger.error(f"Error loading {self.config_file}: {e}")
 

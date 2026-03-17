@@ -10,10 +10,10 @@ import os
 logger = logging.getLogger("exam_reader")
 
 # Uses Chromium
-def href_link_scraper(URL, port, text, chromium_path):
+def href_link_scraper(URL, port, text, chromium_path, sleep_time):
     """Gets link from given text in URL"""
 
-    logger.log(1, f"Configuring Chrome for URL: {URL}")
+    logger.log(10, f"Configuring Chrome for URL: {URL}")
     options = webdriver.ChromeOptions()
 
     options.add_argument("--headless")
@@ -23,20 +23,21 @@ def href_link_scraper(URL, port, text, chromium_path):
     options.add_argument(f"--remote-debugging-port={port}") # Helps with the port error
     options.binary_location = chromium_path
 
+    logger.log(10, "Initializing Selenium Webdriver Chromium Service")
     service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
 
     try:
-        logger.log(1, "Starting Chrome driver instance...")
+        logger.log(10, "Starting Chrome driver instance...")
         driver = webdriver.Chrome(service=service, options=options)
 
-        logger.log(1, f"Accessing URL: {URL}")
+        logger.log(10, f"Accessing URL: {URL}")
         driver.get(URL)
 
-        logger.log(1, "Waiting for JS rendering (1s)...")
-        time.sleep(1) # Wait for JS to render
+        logger.log(10, f"Waiting for JS rendering ({sleep_time}s)...")
+        time.sleep(sleep_time) # Wait for JS to render
 
         # Find the link containing the text
-        logger.log(1, f"Finding element by XPath: {text}")
+        logger.log(10, f"Finding element by XPath: {text}")
         element = driver.find_element(By.XPATH, text)
         href_link = element.get_attribute('href')
         logger.log(30, f"Successfully scraped target link: {href_link}")
@@ -48,7 +49,7 @@ def href_link_scraper(URL, port, text, chromium_path):
     finally:
         # Check if driver was actually created before quitting
         if 'driver' in locals():
-            logger.log(1, "Quitting Chrome driver.")
+            logger.log(10, "Quitting Chrome driver.")
             driver.quit()
 
     return href_link
@@ -61,5 +62,6 @@ if __name__ == "__main__":
     port = CONFIG.port
     text = CONFIG.text
     chromium_path = CONFIG.chromium_path
+    sleep_time = CONFIG.sleep_time
 
-    print(href_link_scraper(URL, port, text, chromium_path))
+    print(href_link_scraper(URL, port, text, chromium_path, sleep_time))

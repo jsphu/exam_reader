@@ -114,6 +114,13 @@ def main():
         help="Check for changes from previous run."
     )
 
+    parser.add_argument(
+        '--sleep-time',
+        default=CONFIG.sleep_time,
+        type=int,
+        help="Seconds to wait for webpage to render"
+    )
+
     args = parser.parse_args()
     if args.verbose is not None:
         CONFIG.verbose = "v" * args.verbose
@@ -134,7 +141,7 @@ def main():
             file_name = md_path
         else:
             # 0. GET DRIVE LINK
-            target_url = iu.href_link_scraper(URL=args.url, port=args.port, text=args.text, chromium_path=args.chromium)
+            target_url = iu.href_link_scraper(URL=args.url, port=args.port, text=args.text, chromium_path=args.chromium, sleep_time=args.sleep_time)
 
             if args.show_link:
                 logger.log(50, f"Drive Link: {target_url}")
@@ -236,18 +243,20 @@ def main():
             if args.extend:
                 max_length = max((len(match['course']) for match in matches))
                 logger.log(10, f"{max_length=}")
-                padding = (max_length - 13) * " " + " "
+                padding = (max_length - 13) * "-" + " "
+                PADDING = padding.replace('-', ' ')
                 day_padding = 5 * "-" + " "
                 DAY_PADDING = day_padding.replace('-', ' ')
             else:
                 max_length = 13
                 padding = " "
+                PADDING = padding
                 day_padding = " "
                 DAY_PADDING = day_padding
             logger.log(10, f"Selected {padding=}")
             logger.log(10, rf"{day_padding=}")
             if args.labels:
-                logger.log(50, "TARİH(LER)  GÜN " + DAY_PADDING + "SAAT  DERS ADI     " + padding + "YERİ")
+                logger.log(50, "TARİH(LER)  GÜN " + DAY_PADDING + "SAAT  DERS ADI     " + PADDING + "YERİ")
                 logger.log(50, "----------- ----" + day_padding + "----- -------------" + padding + "--------------------")
             for match in matches:
                 date = match['date']

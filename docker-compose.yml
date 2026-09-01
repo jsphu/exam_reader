@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  exam-reader:
+    build: .
+    container_name: exam-reader
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+      - ./config.yaml:/app/config.yaml
+    restart: unless-stopped

@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git
+.gitignore
+.dockerignore
+venv/
+.venv/
+tracker.log
+*.pdf
+*.md
+.pyenv/
+.pytest_cache/
+.vscode/
+.idea/

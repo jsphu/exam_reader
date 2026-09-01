@@ -89,10 +89,16 @@ class CONFIG:
         logger.setLevel(verbosity)
 
     def get_chromium_path(self):
-        PATH = "/snap/bin/chromium"
-        if not os.path.exists(PATH):
-            PATH = "/snap/bin/chromium-browser"
-        return PATH
+        paths = [
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+            "/snap/bin/chromium",
+            "/snap/bin/chromium-browser",
+        ]
+        for p in paths:
+            if os.path.exists(p):
+                return p
+        return "/usr/bin/chromium"
 
     def get_credentials_json(self):
         # Look in src directory for credentials (as before)
